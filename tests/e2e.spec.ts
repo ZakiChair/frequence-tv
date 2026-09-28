@@ -108,11 +108,17 @@ test('navigation and browser history restore home, catalog filters, favorites, a
   await expect(search(page)).toHaveValue('France 24');
   await cards(page).getByRole('button', { name: 'Regarder France 24 (Anglais)', exact: true }).click();
   await expect(selectedName(page)).toHaveText('France 24 (Anglais)');
+  await expect(page).toHaveURL(url => url.searchParams.get('q') === 'France 24');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(selectedName(page)).toHaveText('France 24 (Anglais)');
+  await expect(search(page)).toHaveValue('France 24');
+  expect((await cards(page).locator('h3').allTextContents()).every(name => name.includes('France 24'))).toBeTruthy();
   await page.goBack();
   await expect(search(page)).toHaveValue('France 24');
   await expect(page.locator('.watch-shell')).toBeHidden();
   await page.goForward();
   await expect(selectedName(page)).toHaveText('France 24 (Anglais)');
+  await expect(search(page)).toHaveValue('France 24');
   await expect(page.locator('.watch-shell')).toBeVisible();
 });
 
