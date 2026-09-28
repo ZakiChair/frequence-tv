@@ -23,6 +23,7 @@ function App() {
   const [loadError, setLoadError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState(() => new URLSearchParams(location.search).get('chaine') || '');
+  const [retainedChannel, setRetainedChannel] = useState<Channel | null>(null);
   const [favorites, setFavorites] = useState(() => readSaved('frequence:favorites'));
   const [recent, setRecent] = useState(() => readSaved('frequence:recent'));
   const [view, setView] = useState<View>(() => { const route = readRoute(location.search); return route.page === 'favorites' || route.favoritesOnly ? 'favorites' : 'all'; });
@@ -91,7 +92,8 @@ function App() {
 
   const channels = useMemo(() => catalog?.channels ?? [], [catalog]);
   const channelMap = useMemo(() => new Map(channels.map(channel => [channel.id, channel])), [channels]);
-  const selected = channelMap.get(selectedId) || channels.find(c => c.id === 'France24.fr@French') || channels.find(c => c.country.toUpperCase() === 'FR' && c.streams.some(s => s.url.startsWith('https://'))) || channels[0] || null;
+  const selected = channelMap.get(selectedId) || (retainedChannel?.id === selectedId ? retainedChannel : null) || channels.find(c => c.id === 'France24.fr@French') || channels.find(c => c.country.toUpperCase() === 'FR' && c.streams.some(s => s.url.startsWith('https://'))) || channels[0] || null;
+  useEffect(() => { if (selected) setRetainedChannel(selected); }, [selected]);
   const countryOptions = useMemo(() => [...new Set(channels.map(c => c.country).filter(Boolean))].sort((a, b) => countryName(a).localeCompare(countryName(b), 'fr')), [channels]);
   const categoryOptions = useMemo(() => [...new Set(channels.flatMap(c => c.categories))].sort((a, b) => categoryName(a).localeCompare(categoryName(b), 'fr')), [channels]);
   const ordered = useMemo(() => {
@@ -148,6 +150,16 @@ function App() {
     setRefreshing(true);
     try { const fresh = await refreshCatalog(catalog ?? undefined); if (version === refreshVersion.current) setCatalog(fresh); setToast('Catalogue mis à jour'); } catch { setToast('Mise à jour indisponible. Votre catalogue reste accessible.'); } finally { setRefreshing(false); }
   };
+  const refreshSources = async () => {
+    const channelId = selected?.id;
+    const version = ++refreshVersion.current;
+    const fresh = await refreshCatalog(catalog ?? undefined).catch(() => {
+      throw new Error('La mise à jour des sources est indisponible. Vérifiez votre connexion puis réessayez.');
+    });
+    if (channelId && !fresh.channels.some(channel => channel.id === channelId)) throw new Error('Cette chaîne ne figure plus dans la playlist actuelle. Les liens déjà chargés restent accessibles.');
+    if (version !== refreshVersion.current) throw new Error('Une autre actualisation a déjà été lancée. Réessayez dans un instant.');
+    setCatalog(fresh);
+  };
   const clearFilters = () => { setSearch(''); setCountry(''); setCategory(''); setView('all'); if (page === 'favorites') goTo('channels'); };
   const CatalogHeading = page === 'watch' ? 'h2' : 'h1';
 
@@ -170,7 +182,7 @@ function App() {
         <div className="section-intro"><div><button className="back-to-channels" onClick={() => goTo('channels')}><ArrowLeft size={15}/> Toutes les chaînes</button><h1 id="welcome-heading">Votre direct.</h1></div><button className={`text-button cinema-button ${cinema ? 'is-active' : ''}`} onClick={() => setCinema(!cinema)}><Maximize2 size={16}/>{cinema ? 'Quitter le mode cinéma' : 'Mode cinéma'}</button></div>
         <div className="watch-layout">
           <div className="screen-column">
-            <TVPlayer channel={selected} onNext={() => zap(1)} onPrevious={() => zap(-1)} onPlaying={handlePlaying} enabled={page === 'watch' || playerPinned} playRequest={playRequest}/>
+            <TVPlayer channel={selected} onNext={() => zap(1)} onPrevious={() => zap(-1)} onPlaying={handlePlaying} enabled={page === 'watch' || playerPinned} playRequest={playRequest} onRefreshSources={refreshSources}/>
             <div className="now-playing">
               {selected ? <><Logo channel={selected}/><div className="now-text"><div className="now-name"><h2>{selected.name}</h2><span className={`status-tag ${playing ? 'is-live' : ''}`}>{playing ? <><i/> En direct</> : 'À regarder'}</span></div><p>{countryFlag(selected.country)} {countryName(selected.country)}<span className="metadata-divider"/>{selected.categories.map(categoryName).join(', ') || 'Télévision'}{selected.streams.length > 1 && <><span className="metadata-divider"/>{selected.streams.length} sources</>}</p></div><div className="now-actions"><button className={`icon-button ${favorites.includes(selected.id) ? 'saved' : ''}`} aria-label={favorites.includes(selected.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'} aria-pressed={favorites.includes(selected.id)} onClick={() => toggleFavorite(selected.id)}><Heart size={20} fill={favorites.includes(selected.id) ? 'currentColor' : 'none'}/></button><button className="icon-button" onClick={() => void share()} aria-label="Partager cette chaîne"><Share2 size={19}/></button></div></> : <p>{loadError ? 'Catalogue indisponible' : 'Chargement des chaînes…'}</p>}
             </div>
@@ -193,7 +205,7 @@ function App() {
     </main>
 
     <footer><a className="brand footer-brand" href="/">fréquence<span className="brand-dot">.</span></a><p>Le monde, au bout de la télécommande.</p><div><a href={PLAYLIST_URL} target="_blank" rel="noreferrer">Catalogue IPTV-org</a><button onClick={() => setAbout(true)}>À propos & aide</button></div></footer>
-    <dialog ref={infoRef} className="about-dialog" onCancel={() => setAbout(false)} onClick={event => { if (event.target === event.currentTarget) setAbout(false); }}><div className="dialog-heading"><span className="brand">fréquence<span className="brand-dot">.</span></span><button className="icon-button" aria-label="Fermer l’aide" onClick={() => setAbout(false)}><X size={21}/></button></div><h2>La télé, à votre rythme.</h2><p>Choisissez une chaîne, lancez la lecture et explorez le monde. Vos favoris restent enregistrés dans ce navigateur, sans compte.</p><div className="help-shortcuts"><span><kbd>←</kbd><kbd>→</kbd> Changer de chaîne</span><span><kbd>/</kbd> Rechercher</span></div><h3>Une chaîne ne se lance pas ?</h3><p>Essayez une autre source dans le lecteur. Certains flux sont hors ligne, limités à un pays ou incompatibles avec la lecture web. Vous pouvez copier leur adresse pour les ouvrir dans un lecteur comme VLC.</p><h3>Un catalogue ouvert</h3><p>Les chaînes proviennent de la <a href={PLAYLIST_URL} target="_blank" rel="noreferrer">playlist publique IPTV-org</a>. Fréquence ne stocke ni ne retransmet les vidéos : la lecture se fait directement auprès des diffuseurs.</p><p className="update-note">{catalog ? `Catalogue actualisé le ${new Date(catalog.updatedAt).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}. ${catalog.streamCount.toLocaleString('fr-FR')} flux référencés.` : 'Chargement du catalogue.'}</p></dialog>
+    <dialog ref={infoRef} className="about-dialog" onCancel={() => setAbout(false)} onClick={event => { if (event.target === event.currentTarget) setAbout(false); }}><div className="dialog-heading"><span className="brand">fréquence<span className="brand-dot">.</span></span><button className="icon-button" aria-label="Fermer l’aide" onClick={() => setAbout(false)}><X size={21}/></button></div><h2>La télé, à votre rythme.</h2><p>Choisissez une chaîne, lancez la lecture et explorez le monde. Vos favoris restent enregistrés dans ce navigateur, sans compte.</p><div className="help-shortcuts"><span><kbd>←</kbd><kbd>→</kbd> Changer de chaîne</span><span><kbd>/</kbd> Rechercher</span></div><h3>Une chaîne ne se lance pas ?</h3><p>Le lecteur essaie automatiquement les autres sources disponibles pour la même chaîne. Si le direct reste indisponible, actualisez les sources, ouvrez le site officiel ou téléchargez la playlist pour VLC depuis le lecteur. Certains flux restent hors ligne, limités à un pays ou incompatibles avec votre navigateur.</p><h3>Un catalogue ouvert</h3><p>Les chaînes proviennent de la <a href={PLAYLIST_URL} target="_blank" rel="noreferrer">playlist publique IPTV-org</a>. Fréquence ne stocke ni ne retransmet les vidéos : la lecture se fait directement auprès des diffuseurs.</p><p className="update-note">{catalog ? `Catalogue actualisé le ${new Date(catalog.updatedAt).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}. ${catalog.streamCount.toLocaleString('fr-FR')} flux référencés.` : 'Chargement du catalogue.'}</p></dialog>
     {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
   </div>;
 }

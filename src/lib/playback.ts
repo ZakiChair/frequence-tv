@@ -28,3 +28,8 @@ export function isDirectVideo(url: string): boolean {
     return false;
   }
 }
+
+export function isDashStream(url: string): boolean {
+  try { return /\.mpd$/i.test(new URL(url).pathname); }
+  catch { return false; }
+}

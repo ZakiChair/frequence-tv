@@ -67,7 +67,7 @@ http://example.org/live.m3u8`);
 describe('catalog loading', () => {
   const snapshot: Catalog = {
     source: 'https://iptv-org.github.io/iptv/index.m3u', updatedAt: '2026-09-28T08:00:00Z', streamCount: 1,
-    channels: [{ id: 'France24.fr', name: 'France 24', country: 'FR', categories: ['News'], languages: ['fra'], logo: 'https://example.org/logo.png', streams: [{ url: 'https://example.org/old.m3u8', label: 'France 24', quality: 'HD' }] }],
+    channels: [{ id: 'France24.fr', name: 'France 24', country: 'FR', categories: ['News'], languages: ['fra'], logo: 'https://example.org/logo.png', website: 'https://www.france24.com/', streams: [{ url: 'https://example.org/old.m3u8', label: 'France 24', quality: 'HD' }] }],
   };
 
   it('loads the bundled catalog for an immediate usable result', async () => {
@@ -86,7 +86,7 @@ describe('catalog loading', () => {
     const updated = await refreshCatalog(snapshot);
     expect(updated.source).toBe(snapshot.source);
     expect(updated.streamCount).toBe(1);
-    expect(updated.channels[0]).toMatchObject({ languages: ['fra'], logo: 'https://example.org/logo.png', streams: [{ url: 'https://example.org/new.m3u8' }] });
+    expect(updated.channels[0]).toMatchObject({ languages: ['fra'], logo: 'https://example.org/logo.png', website: 'https://www.france24.com/', streams: [{ url: 'https://example.org/new.m3u8' }] });
     expect(updated.updatedAt).not.toBe(snapshot.updatedAt);
     expect(snapshot.channels[0].streams[0].url).toBe('https://example.org/old.m3u8');
   });

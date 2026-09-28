@@ -1,9 +1,10 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { normalizeChannelId, parseM3U, PLAYLIST_URL } from '../src/lib/catalog';
+import { getChannelWebsite } from '../src/lib/recovery-links';
 import type { Catalog } from '../src/lib/types';
 
-interface ChannelMetadata { id: string; country: string; categories: string[] }
+interface ChannelMetadata { id: string; country: string; categories: string[]; website?: string | null }
 interface FeedMetadata { channel: string; id: string; languages: string[] }
 
 async function download(url: string): Promise<Response> {
@@ -40,6 +41,8 @@ for (const channel of channels) {
   const info = channelMetadata.get(channel.id.split('@')[0]);
   if (info) {
     channel.country = info.country || channel.country;
+    const website = getChannelWebsite({ ...channel, website: info.website ?? undefined });
+    if (website) channel.website = website;
     if (!channel.categories.length) channel.categories = info.categories.map((category) => category[0].toUpperCase() + category.slice(1));
   }
   channel.languages = [...(languages.get(channel.id) || [])];

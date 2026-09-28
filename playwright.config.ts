@@ -8,7 +8,7 @@ const baseURL = process.env.FREQUENCE_BASE_URL || 'http://localhost:5183';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: 'e2e.spec.ts',
+  testMatch: /.*e2e\.spec\.ts/,
   fullyParallel: true,
   workers: 2,
   timeout: 30_000,

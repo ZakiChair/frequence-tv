@@ -1,4 +1,5 @@
 import type { Catalog, Channel } from './types';
+import { getChannelWebsite } from './recovery-links';
 
 export const PLAYLIST_URL = 'https://iptv-org.github.io/iptv/index.m3u';
 
@@ -28,6 +29,8 @@ export async function refreshCatalog(snapshot?: Catalog, signal?: AbortSignal): 
     channel.country = known.country || channel.country;
     channel.languages = [...known.languages];
     channel.logo ||= known.logo;
+    const website = getChannelWebsite(known);
+    if (website) channel.website = website;
     if (!channel.categories.length) channel.categories = [...known.categories];
   }
   return {

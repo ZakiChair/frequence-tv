@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import type { Catalog } from '../src/lib/types';
 
@@ -259,27 +261,34 @@ test('the search shortcut opens the catalog and keeps arrow keys inside the sear
 });
 
 test('mini-player keeps the same playing video across navigation and pauses when closed', async ({ page }) => {
+  const catalog = await (await page.request.get('/catalog.json')).json() as Catalog;
+  const channel = catalog.channels.find(item => item.id === 'France24.fr@French')!;
+  const fixtureOrigin = 'https://media.frequence.test';
+  const fixturePath = (name: string) => fileURLToPath(new URL(`./fixtures/hls/${name}`, import.meta.url));
+  const manifest = (await readFile(fixturePath('playlist.m3u8'), 'utf8'))
+    .replace('init.mp4', `${fixtureOrigin}/init.mp4`)
+    .replace('playlist0.m4s', `${fixtureOrigin}/playlist0.m4s`);
+  const manifests: string[] = [];
+  const media: string[] = [];
+  // Use the authentic channel, user start action, and real HLS decoding. Only
+  // broadcaster responses are substituted with our self-generated local media.
+  await page.route(url => channel.streams.some(stream => stream.url === url.href), async route => {
+    manifests.push(route.request().url());
+    await route.fulfill({ body: manifest, contentType: 'application/vnd.apple.mpegurl', headers: { 'access-control-allow-origin': '*' } });
+  });
+  await page.route(`${fixtureOrigin}/**`, async route => {
+    const name = new URL(route.request().url()).pathname.slice(1);
+    expect(['init.mp4', 'playlist0.m4s']).toContain(name);
+    media.push(name);
+    await route.fulfill({ path: fixturePath(name), contentType: 'video/mp4', headers: { 'access-control-allow-origin': '*' } });
+  });
   await expect(page.locator('.watch-shell')).toBeHidden();
   await page.goto('/?chaine=France24.fr%40French', { waitUntil: 'domcontentloaded' });
   await expect(selectedName(page)).toHaveText('France 24 (Français)');
   await expect(page.getByRole('button', { name: 'Regarder France 24 (Français) en direct', exact: true })).toBeVisible();
   const video = await page.locator('video').elementHandle();
   expect(video).not.toBeNull();
-  // A real browser MediaStream keeps this lifecycle test independent from remote
-  // broadcaster availability. The catalog and the player element stay genuine.
-  await video!.evaluate(async element => {
-    const media = element as HTMLVideoElement;
-    const canvas = document.createElement('canvas');
-    canvas.width = 320; canvas.height = 180;
-    const context = canvas.getContext('2d')!;
-    const paint = () => { context.fillStyle = `hsl(${Date.now() % 360} 50% 50%)`; context.fillRect(0, 0, 320, 180); };
-    paint();
-    const timer = window.setInterval(paint, 80);
-    (window as Window & { __frequenceMediaFixture?: unknown }).__frequenceMediaFixture = { canvas, timer };
-    media.muted = true;
-    media.srcObject = canvas.captureStream(12);
-    await media.play();
-  });
+  await page.getByRole('button', { name: 'Regarder France 24 (Français) en direct', exact: true }).click();
   await expect.poll(() => video!.evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
   await expect(page.getByRole('button', { name: 'Mettre en pause', exact: true })).toBeVisible();
   const initialTime = await video!.evaluate(element => (element as HTMLVideoElement).currentTime);
@@ -301,4 +310,6 @@ test('mini-player keeps the same playing video across navigation and pauses when
   await expect(page.locator('.watch-shell')).toBeHidden();
   await expect.poll(() => video!.evaluate(element => (element as HTMLVideoElement).paused)).toBeTruthy();
   expect(await video!.evaluate(element => element === document.querySelector('video'))).toBeTruthy();
+  expect(manifests).toHaveLength(1);
+  expect(media).toEqual(['init.mp4', 'playlist0.m4s']);
 });

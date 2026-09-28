@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDirectVideo, isWebStream, preferredStreamIndex, streamProblem } from '../src/lib/playback';
+import { isDashStream, isDirectVideo, isWebStream, preferredStreamIndex, streamProblem } from '../src/lib/playback';
 
 describe('browser stream compatibility', () => {
   it('starts with the first secure source while preserving catalog order and falling back to HTTP if necessary', () => {
@@ -31,5 +31,11 @@ describe('browser stream compatibility', () => {
     expect(isDirectVideo('https://example.org/stream.MP4?token=123')).toBe(true);
     expect(isDirectVideo('https://example.org/live?file=video.mp4')).toBe(false);
     expect(streamProblem(undefined, 'https:')).toContain('source');
+  });
+
+  it('routes MPD manifests to DASH while preserving signed URLs', () => {
+    expect(isDashStream('https://example.org/live.MPD?token=a%2Fb')).toBe(true);
+    expect(isDashStream('https://example.org/live.m3u8?file=live.mpd')).toBe(false);
+    expect(isDashStream('not a URL')).toBe(false);
   });
 });
