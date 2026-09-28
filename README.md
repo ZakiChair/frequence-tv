@@ -2,6 +2,8 @@
 
 Une télévision web en français à partir de la [playlist IPTV-org](https://iptv-org.github.io/iptv/index.m3u), avec lecture HLS, zapping, recherche, filtres pays/catégorie, favoris locaux et liens partageables.
 
+L'accueil propose une sélection éditoriale, des catégories, des destinations et les chaînes récentes. Navigation Accueil / Chaînes / Mes favoris, lecture en un clic, mini-lecteur persistant pendant l'exploration et retour navigateur conservant les filtres. Les tendances sont une sélection Fréquence, sans statistiques d'audience inventées.
+
 ## Développement
 
 ```sh

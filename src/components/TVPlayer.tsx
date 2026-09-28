@@ -12,6 +12,8 @@ type Props = {
   onNext: () => void;
   onPrevious: () => void;
   onPlaying?: (playing: boolean) => void;
+  enabled?: boolean;
+  playRequest?: number;
 };
 
 const statusLabels: Record<Status, string> = {
@@ -19,10 +21,11 @@ const statusLabels: Record<Status, string> = {
   buffering: 'Mise en mémoire tampon…', paused: 'En pause', ended: 'Diffusion terminée', error: 'Source indisponible',
 };
 
-export default function TVPlayer({ channel, onNext, onPrevious, onPlaying }: Props) {
+export default function TVPlayer({ channel, onNext, onPrevious, onPlaying, enabled = true, playRequest = 0 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
   const interactedRef = useRef(false);
+  const handledPlayRequest = useRef(0);
   const onPlayingRef = useRef(onPlaying);
   const resumeRef = useRef<(() => void) | null>(null);
   const [sourceChoice, setSourceChoice] = useState({ channelId: '', index: 0 });
@@ -36,7 +39,7 @@ export default function TVPlayer({ channel, onNext, onPrevious, onPlaying }: Pro
   const source = channel?.streams[sourceIndex];
   const streamUrl = source?.url;
   const channelId = channel?.id;
-  const key = `${channelId ?? ''}:${streamUrl ?? ''}:${attempt}`;
+  const key = `${channelId ?? ''}:${streamUrl ?? ''}:${attempt}:${playRequest}`;
   const status = state.key === key ? state.status : (interactedRef.current && channel ? 'loading' : 'idle');
   const error = state.key === key ? state.error : undefined;
   const busy = status === 'loading' || status === 'buffering';
@@ -117,6 +120,8 @@ export default function TVPlayer({ channel, onNext, onPrevious, onPlaying }: Pro
     setCopied(false);
 
     const load = async () => {
+      if (!enabled) { interactedRef.current = false; update('idle'); return; }
+      if (playRequest > handledPlayRequest.current) { interactedRef.current = true; handledPlayRequest.current = playRequest; }
       if (!channelId || !interactedRef.current) { update('idle'); return; }
       const problem = streamProblem(streamUrl, window.location.protocol);
       if (problem || !streamUrl) { fail(problem ?? 'Aucune source disponible.'); return; }
@@ -165,7 +170,7 @@ export default function TVPlayer({ channel, onNext, onPrevious, onPlaying }: Pro
       video.load();
       onPlayingRef.current?.(false);
     };
-  }, [key, channelId, streamUrl]);
+  }, [key, channelId, streamUrl, enabled, playRequest]);
 
   useEffect(() => {
     if (!notice && !copied) return;

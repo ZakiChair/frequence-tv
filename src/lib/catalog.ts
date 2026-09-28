@@ -73,7 +73,8 @@ export function countryName(code: string): string {
 
 export function countryFlag(code: string): string {
   if (!/^[a-z]{2}$/i.test(code)) return '🌐';
-  return [...code.toUpperCase()].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
+  const iso = code.toUpperCase() === 'UK' ? 'GB' : code.toUpperCase();
+  return [...iso].map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
 }
 
 function safeUrl(value: string): string {
